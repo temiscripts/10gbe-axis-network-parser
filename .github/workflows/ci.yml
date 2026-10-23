@@ -8,11 +8,24 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-      steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
-  
-        - name: Install Hardware Tools
-          run: |
-            sudo apt update
-            sudo apt install -y build-essential g++ verilator
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Hardware Tools
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential g++ verilator
+
+      - name: Build Skid Buffer Simulation
+        run: |
+          verilator -Wall --cc --exe --build -j 0 \
+            -Isrc \
+            src/axis_skid_buffer.sv \
+            src/axis_skid_buffer_sva.sv \
+            tb/tb_axis_skid_buffer.cpp \
+            -o sim_skid_buffer
+
+      - name: Run Simulation & Assertions
+        run: |
+          ./obj_dir/sim_skid_buffer
