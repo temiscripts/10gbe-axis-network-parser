@@ -29,11 +29,14 @@ module network_parser_fsm #(
 
   state_t network_state;
 
+  localparam logic [15:0] ETHERTYPE_IPV4 = 16'h0800;
+  localparam logic [7:0] IPV4_VER_IHL = 8'h45;
+  localparam logic [7:0] IPV4_PROTOCOL = 8'h11;
+  localparam logic [15:0] BUS_BYTES = 16'(DATA_WIDTH / 8);
+
   logic [15:0] byte_offset;
   logic [DATA_WIDTH-1:0] pipe_data;
 
-  localparam logic [15:0] ETHERTYPE_IPV4 = 16'h0800;
-  localparam logic [15:0] BUS_BYTES = 16'(DATA_WIDTH / 8);
 
 
   always_ff @(posedge clk or negedge rst_n) begin
@@ -60,7 +63,8 @@ module network_parser_fsm #(
 
         ST_ETH: begin
           if (s_axis_tready && s_axis_tvalid) begin
-            if ({s_axis_tdata[47:40], s_axis_tdata[39:32]} == ETHERTYPE_IPV4) begin
+            if ({s_axis_tdata[47:40], s_axis_tdata[39:32]} == ETHERTYPE_IPV4 &&
+             s_axis_tdata[55:48] ==IPV4_VER_IHL) begin
               pipe_data <= s_axis_tdata;
               network_state <= ST_IPV4;
               byte_offset <= byte_offset + BUS_BYTES;
@@ -72,6 +76,45 @@ module network_parser_fsm #(
               end else begin
                 network_state <= ST_DROP;
               end
+            end
+          end
+        end
+        ST_IPV4: begin
+          if (s_axis_tready && s_axis_tvalid) begin
+            if (byte_offset == 16'd16 && s_axis_tdata[63:56] == IPV4_PROTOCOL) begin
+              byte_offset <= byte_offset + BUS_BYTES;
+              pipe_data   <= s_axis_tdata;
+            end else begin
+              if (s_axis_tlast) begin
+                network_state <= ST_IDLE;
+                byte_offset   <= '0;
+              end else begin
+                network_state <= ST_DROP;
+              end
+              pkt_dropped_flag <= 1'b1;
+
+            end
+            if (byte_offset == 16'd24) begin
+              byte_offset <= byte_offset + BUS_BYTES;
+              pipe_data   <= s_axis_tdata;
+            end
+            if (byte_offset == 16'd32) begin
+              byte_offset <= byte_offset + BUS_BYTES;
+              if( {
+                pipe_data[55:48], pipe_data[63:56], s_axis_tdata[7:0], s_axis_tdata[15:8]
+              } ==  cfg_target_ip) begin
+                network_state <= ST_UDP;
+                pipe_data <= s_axis_tdata;
+              end else begin
+                if (s_axis_tlast) begin
+                  network_state <= ST_IDLE;
+                  byte_offset   <= '0;
+                end else begin
+                  network_state <= ST_DROP;
+                end
+              end
+
+              pkt_dropped_flag <= 1'b1;
             end
           end
         end
@@ -88,4 +131,3 @@ module network_parser_fsm #(
   end
 
 endmodule
-

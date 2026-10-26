@@ -4,12 +4,10 @@ module axis_skid_buffer #(
     input logic clk,
     input logic rst_n,
 
-    // receiving from network/master
     input  logic [DATA_WIDTH-1:0] s_axis_tdata,
     input  logic                  s_axis_tvalid,
     output logic                  s_axis_tready,
 
-    // sending to slave/parser
     output logic [DATA_WIDTH-1:0] m_axis_tdata,
     output logic                  m_axis_tvalid,
     input  logic                  m_axis_tready
